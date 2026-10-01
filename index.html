@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONTROLE DE ESTOQUE</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap');
+  :root { --navy:#1E2A38; --paper:#EDEFF2; --surface:#FFFFFF; --brass:#0cd849; --brass-dark:#08e66c; --ok:#2E8B57; --danger:#C0392B; --ink:#1E2A38; --muted:#6B7686; --border:#DADFE6; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:18px; background:var(--paper); color:var(--ink); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; }
+  .hidden { display:none !important; }
+  .login-wrap { min-height:calc(100vh - 36px); display:flex; align-items:center; justify-content:center; }
+  .login-card { width:100%; max-width:400px; background:var(--surface); border-radius:14px; padding:32px 28px; border-top:4px solid var(--brass); box-shadow:0 10px 30px rgba(20,30,45,0.10); }
+  .login-card h1 { font-family:'Space Grotesk',sans-serif; font-size:19px; margin:0 0 2px; text-align:center; }
+  .login-card .tag { color:var(--muted); font-size:13px; margin-bottom:22px; text-align:center; }
+  .user-toggle { display:flex; gap:6px; margin-bottom:18px; }
+  .user-toggle button { flex:1; padding:10px 4px; border-radius:8px; border:1.5px solid var(--border); background:#fff; cursor:pointer; font-weight:700; font-size:12px; color:var(--muted); font-family:'Space Grotesk',sans-serif; }
+  .user-toggle button.active.entrada { background:var(--ok); color:#fff; border-color:var(--ok); }
+  .user-toggle button.active.saida { background:var(--danger); color:#fff; border-color:var(--danger); }
+  .user-toggle button.active.admin { background:var(--navy); color:#fff; border-color:var(--navy); }
+  label { font-size:13px; font-weight:600; color:var(--muted); display:block; margin-bottom:6px; }
+  input[type="text"], input[type="password"], input[type="number"], select { padding:12px; font-size:15px; width:100%; border:1.5px solid var(--border); border-radius:8px; font-family:inherit; background:#fff; }
+  input:focus, select:focus { outline:none; border-color:var(--brass); box-shadow:0 0 0 3px rgba(12,216,73,0.18); }
+  .field { margin-bottom:14px; }
+  .btn { border:none; border-radius:8px; padding:12px 18px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif; width:100%; }
+  .btn-navy { background:var(--navy); color:#fff; }
+  .btn-navy:hover { background:#263548; }
+  .login-hint { font-size:12px; color:var(--muted); margin-top:16px; text-align:center; line-height:1.5; }
+  .container { max-width:920px; margin:0 auto; background:var(--surface); padding:24px; border-radius:12px; border-top:4px solid var(--brass); box-shadow:0 10px 30px rgba(20,30,45,0.08); }
+  .app-header { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap; }
+  h1 { font-family:'Space Grotesk',sans-serif; color:var(--navy); font-size:21px; margin:4px 0 2px; }
+  .subtitle { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .logout-btn { background:transparent; border:1px solid var(--border); color:var(--navy); padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .logout-btn:hover { background:#F4F5F7; }
+  .mode-banner { border-radius:10px; padding:16px 18px; color:#fff; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+  .mode-banner.entrada { background:var(--ok); }
+  .mode-banner.saida { background:var(--danger); }
+  .mode-banner.admin { background:var(--navy); }
+  .mode-banner .mode-title { font-size:17px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
+  .mode-banner .mode-sub { font-size:12.5px; opacity:0.9; }
+  .admin-dashboard { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+  .dash-card { background:var(--paper); padding:16px; border-radius:10px; text-align:center; border-left:4px solid var(--navy); }
+  .dash-card h3 { margin:0; font-size:13px; color:var(--muted); text-transform:uppercase; }
+  .dash-card .value { font-size:24px; font-weight:700; font-family:'Space Grotesk',sans-serif; color:var(--navy); margin-top:6px; }
+  .scan-box { background:var(--paper); padding:18px; border-radius:10px; text-align:center; margin-bottom:22px; }
+  .camera-trigger { display:block; background:var(--brass); color:#0a0a0a; padding:14px 20px; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:15px; width:100%; max-width:340px; text-align:center; margin:0 auto; font-family:inherit; }
+  .camera-trigger:hover { background:var(--brass-dark); }
+  .scan-box input[type="text"] { max-width:340px; margin:12px auto 0; text-align:center; }
+  .toast { padding:13px; margin-bottom:16px; border-radius:8px; font-weight:600; text-align:center; display:none; font-size:14px; }
+  .toast.success { background:#E1F3EA; color:#226B43; border:1px solid #BFE5D0; }
+  .toast.error { background:#FBE4E1; color:#9A2E22; border:1px solid #F1BEB6; }
+  h2 { font-family:'Space Grotesk',sans-serif; font-size:16px; color:var(--navy); margin:26px 0 8px; }
+  .table-responsive { width:100%; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; min-width:600px; }
+  th, td { border-bottom:1px solid var(--border); padding:9px 10px; text-align:left; vertical-align:middle; }
+  th { background:var(--navy); color:#fff; font-weight:600; font-size:12.5px; }
+  tbody tr:hover { background:#F7F8FA; }
+  .search-box { margin:8px 0 10px; }
+  .table-scroll { max-height:420px; overflow-y:scroll; overflow-x:auto; border:1px solid var(--border); border-radius:8px; }
+  .table-scroll table { margin-top:0; }
+  .table-scroll thead th { position:sticky; top:0; z-index:1; }
+  .no-results { display:none; text-align:center; color:var(--muted); padding:18px; font-size:14px; }
+  .badge { padding:4px 9px; border-radius:100px; font-weight:600; font-size:12px; color:#fff; display:inline-block; }
+  .badge-in { background:var(--ok); }
+  .badge-out { background:var(--danger); }
+  .badge-neutral { background:var(--muted); }
+  .qty-input { width:70px !important; padding:4px 8px !important; text-align:center; }
+  .controls { margin-top:20px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; }
+  #totalItems { font-size:14px; font-weight:700; }
+  button.action { padding:11px 16px; background:var(--navy); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; font-family:inherit; }
+  button.action:hover { background:#263548; }
+  button.action.ghost { background:transparent; color:var(--navy); border:1px solid var(--border); }
+  button.action.ghost:hover { background:#F4F5F7; }
+  .camera-modal { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .camera-content { background:#fff; padding:20px; border-radius:12px; width:100%; max-width:450px; text-align:center; }
+  .camera-content h3 { margin:0 0 10px; font-family:'Space Grotesk',sans-serif; font-size:16px; }
+  #videoScanner { width:100%; height:280px; object-fit:cover; border-radius:8px; margin:10px 0; background:#000; }
+  .btn-delete { padding:8px 14px !important; font-size:13px !important; color:var(--danger) !important; border:1.5px solid var(--danger) !important; border-radius:6px; background:#fff; cursor:pointer; min-height:38px; font-weight:600; touch-action:manipulation; }
+  .btn-delete:active { background:#FBE4E1; }
+  .admin-box { background:var(--paper); padding:18px; border-radius:10px; margin-bottom:20px; }
+  .footnote { text-align:center; color:var(--muted); font-size:12px; margin-top:18px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h1>CONTROLE DE ESTOQUE - e-Shop</h1>
+    <p class="tag">Controle de estoque por código de barras</p>
+    <div id="loginToast" class="toast"></div>
+    <div class="user-toggle">
+      <button type="button" id="toggleEntrada" class="active entrada" onclick="setLoginUser('entrada')">Entrada</button>
+      <button type="button" id="toggleSaida" class="saida" onclick="setLoginUser('saida')">Saída</button>
+      <button type="button" id="toggleAdmin" class="admin" onclick="setLoginUser('admin')">Admin</button>
+    </div>
+    <form id="loginForm" onsubmit="return handleLogin(event)">
+      <div class="field">
+        <label for="loginUsername">Utilizador</label>
+        <input type="text" id="loginUsername" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="loginPassword">Palavra-passe</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-navy">Entrar</button>
+    </form>
+    <p class="login-hint">Selecione o perfil e insira as suas credenciais.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" class="container hidden">
+  <div class="app-header">
+    <div>
+      <h1>CONTROLE DE ESTOQUE</h1>
+      <p class="subtitle" style="margin-bottom:0;">Sessão iniciada como: <strong id="loggedUserLabel"></strong></p>
+    </div>
+    <button class="logout-btn" onclick="handleLogout()">Sair</button>
+  </div>
+  <br>
+
+  <div id="modeBanner" class="mode-banner">
+    <div>
+      <div id="modeTitle" class="mode-title"></div>
+      <div id="modeSub" class="mode-sub"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="adminDashboard" class="admin-dashboard hidden">
+    <div class="dash-card"><h3>Total de Unidades</h3><div class="value" id="dashTotalUnits">0</div></div>
+    <div class="dash-card"><h3>Modelos Registrados</h3><div class="value" id="dashTotalSKUs">0</div></div>
+  </div>
+
+  <div id="scanBox" class="scan-box">
+    <button type="button" class="camera-trigger" onclick="startLiveScanner()">Abrir Leitor Código de Barras (Ao Vivo)</button>
+    <input type="text" id="barcodeInput" placeholder="Ou bipe com leitor USB/Bluetooth..." onkeypress="handlePhysicalScan(event)">
+  </div>
+
+  <div id="cameraModal" class="camera-modal hidden">
+    <div class="camera-content">
+      <h3>Aproxime o código de barras ou QR Code</h3>
+      <video id="videoScanner" autoplay playsinline muted></video>
+      <button type="button" class="btn btn-navy" onclick="stopLiveScanner()">Fechar Câmera</button>
+    </div>
+  </div>
+
+  <div id="stockViewSection" class="hidden">
+    <h2>Catálogo e Estoque Atual</h2>
+    <div class="search-box">
+      <input type="text" id="stockSearch" placeholder="🔍 Buscar por produto, cor, SKU ou código de barras..." oninput="renderTable()" autocomplete="off">
+    </div>
+    <div class="table-responsive table-scroll">
+      <table>
+        <thead>
+          <tr><th>Produto / Descrição</th><th>Cód. Barras</th><th>SKU</th><th>Qtd</th><th>Última Ação</th></tr>
+        </thead>
+        <tbody id="stockTableBody"></tbody>
+      </table>
+      <div id="noResults" class="no-results">Nenhum produto encontrado.</div>
+    </div>
+    <div class="controls">
+      <span id="totalItems">Total geral em estoque: 0 unidades</span>
+      <div style="display:flex; gap:8px;">
+        <button id="btnResetStock" class="action ghost hidden" onclick="resetStock()">Zerar Estoque</button>
+        <button class="action" onclick="exportData()">Exportar Relatório (CSV)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="userManagementSection" class="hidden" style="margin-top:36px; border-top:2px solid var(--border); padding-top:20px;">
+    <h2>Gestão de Logins e Utilizadores</h2>
+    <div class="admin-box">
+      <form id="createUserForm" onsubmit="return handleCreateUser(event)">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1; min-width:150px;">
+            <label for="newUsername">Novo Utilizador</label>
+            <input type="text" id="newUsername" placeholder="Ex: operador1" required>
+          </div>
+          <div style="flex:1; min-width:150px;">
+            <label for="newPassword">Palavra-passe</label>
+            <input type="password" id="newPassword" placeholder="Ex: 123456" required>
+          </div>
+          <div style="flex:1; min-width:150px;">
+            <label for="newRole">Perfil de Acesso</label>
+            <select id="newRole">
+              <option value="entrada">Entrada</option>
+              <option value="saida">Saída</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-navy" style="width:auto; height:46px;">Criar Login</button>
+        </div>
+      </form>
+    </div>
+    <h3>Logins Cadastrados</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Utilizador</th><th>Perfil</th><th>Data de Criação</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="usersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="footnote">Sincronização em tempo real via Supabase.</p>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://egshhxfjswttnsifmazz.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnc2hoeGZqc3d0dG5zaWZtYXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDIxOTYsImV4cCI6MjEwNTY3ODE5Nn0.YhXuhXBxcAU2t3CEXovOew5OnTn4KsrjGX0txH_E5KQ';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+ const productsDB = {
+    // Comfort Class - Solteiro
+    "7901198901274": { sku: "CSCCPU", name: "Comfort Class Solteiro", desc: "Suede Preto" },
+    "7901198901298": { sku: "CSCCCU", name: "Comfort Class Solteiro", desc: "Suede Cinza" },
+    "7901198901311": { sku: "CSCCBCU", name: "Comfort Class Solteiro", desc: "Suede Branco" },
+    "7901198901335": { sku: "CSCCBGU", name: "Comfort Class Solteiro", desc: "Suede Bege" },
+    "7901198901359": { sku: "CSCCMU", name: "Comfort Class Solteiro", desc: "Suede Marrom" },
+    "7901198901380": { sku: "CSCCAU", name: "Comfort Class Solteiro", desc: "Suede Azul" },
+    "7901198901403": { sku: "CSCCVU", name: "Comfort Class Solteiro", desc: "Suede Vinho" },
+
+    // Comfort Class - Viuva
+    "7901198901458": { sku: "CVCCPU", name: "Comfort Class Viuva", desc: "Suede Preto" },
+    "7901198901472": { sku: "CVCCCU", name: "Comfort Class Viuva", desc: "Suede Cinza" },
+    "7901198901496": { sku: "CVCCBCU", name: "Comfort Class Viuva", desc: "Suede Branco" },
+    "7901198901519": { sku: "CVCCBGU", name: "Comfort Class Viuva", desc: "Suede Bege" },
+    "7901198901564": { sku: "CVCCMU", name: "Comfort Class Viuva", desc: "Suede Marrom" },
+    "7901198901571": { sku: "CVCCAU", name: "Comfort Class Viuva", desc: "Suede Azul" },
+    "7901198901601": { sku: "CVCCVU", name: "Comfort Class Viuva", desc: "Suede Vinho" },
+
+    // Comfort Class - Casal
+    "7901198901649": { sku: "CCCCPU", name: "Comfort Class Casal", desc: "Suede Preto" },
+    "7901198901663": { sku: "CCCCCU", name: "Comfort Class Casal", desc: "Suede Cinza" },
+    "7901198901687": { sku: "CCCCBCU", name: "Comfort Class Casal", desc: "Suede Branco" },
+    "7901198901717": { sku: "CCCCBGU", name: "Comfort Class Casal", desc: "Suede Bege" },
+    "7901198901724": { sku: "CCCCMU", name: "Comfort Class Casal", desc: "Suede Marrom" },
+    "7901198901755": { sku: "CCCCAU", name: "Comfort Class Casal", desc: "Suede Azul" },
+    "7901198901779": { sku: "CCCCVU", name: "Comfort Class Casal", desc: "Suede Vinho" },
+
+    // Comfort Class - Queen
+    "7901198901816": { sku: "CQCCPU", name: "Comfort Class Queen", desc: "Suede Preto" },
+    "7901198901823": { sku: "CQCCCU", name: "Comfort Class Queen", desc: "Suede Cinza" },
+    "7901198901830": { sku: "CQCCBCU", name: "Comfort Class Queen", desc: "Suede Branco" },
+    "7901198901854": { sku: "CQCCBGU", name: "Comfort Class Queen", desc: "Suede Bege" },
+    "7901198901885": { sku: "CQCCMU", name: "Comfort Class Queen", desc: "Suede Marrom" },
+    "7901198901939": { sku: "CQCCAU", name: "Comfort Class Queen", desc: "Suede Azul" },
+    "7901198901946": { sku: "CQCCVU", name: "Comfort Class Queen", desc: "Suede Vinho" },
+
+    // Paris - Solteiro
+    "7898723389976": { sku: "CSPPU", name: "Paris Solteiro", desc: "Paris Preto" },
+    "7901198902929": { sku: "CSPCU", name: "Paris Solteiro", desc: "Paris Cinza" },
+    "7901198902936": { sku: "CSPBRU", name: "Paris Solteiro", desc: "Paris Branco" },
+    "7898723383264": { sku: "CSPBU", name: "Paris Solteiro", desc: "Paris Bege" },
+    "7901198902950": { sku: "CSPMU", name: "Paris Solteiro", desc: "Paris Marrom" },
+
+    // Paris - Viuva
+    "7901198902967": { sku: "CVPPU", name: "Paris Viuva", desc: "Paris Preto" },
+    "7901198902974": { sku: "CVPCU", name: "Paris Viuva", desc: "Paris Cinza" },
+    "7901198902981": { sku: "CVPBRU", name: "Paris Viuva", desc: "Paris Branco" },
+    "7901198902424": { sku: "CVPSB", name: "Paris Viuva", desc: "Paris Bege" },
+    "7901198902998": { sku: "CVPMU", name: "Paris Viuva", desc: "Paris Marrom" },
+
+    // Paris - Casal
+    "7901198903001": { sku: "CCPPU", name: "Paris Casal", desc: "Paris Preto" },
+    "7901198903018": { sku: "CCPCU", name: "Paris Casal", desc: "Paris Cinza" },
+    "7901198903025": { sku: "CCPBRU", name: "Paris Casal", desc: "Paris Branco" },
+    "7898723389983": { sku: "CCPBU", name: "Paris Casal", desc: "Paris Bege" },
+    "7901198903032": { sku: "CCPMU", name: "Paris Casal", desc: "Paris Marrom" },
+
+    // Paris - Queen
+    "7901198903049": { sku: "CQPPU", name: "Paris Queen", desc: "Paris Preto" },
+    "7901198903056": { sku: "CQPCU", name: "Paris Queen", desc: "Paris Cinza" },
+    "7901198903063": { sku: "CQPBRU", name: "Paris Queen", desc: "Paris Branco" },
+    "7901198902493": { sku: "CQPSB", name: "Paris Queen", desc: "Paris Bege" },
+    "7901198903070": { sku: "CQPMU", name: "Paris Queen", desc: "Paris Marrom" },
+
+    // Life D33 (já existentes)
+    "7898723389815": { sku: "CSL33SPU", name: "Life D33 Solteiro", desc: "Suede Preto" },
+    "7898723389822": { sku: "CSL33SCU", name: "Life D33 Solteiro", desc: "Suede Cinza" },
+    "7898723389839": { sku: "CSL33BCU", name: "Life D33 Solteiro", desc: "Suede Branco" },
+    "7898723389846": { sku: "CSL33BGU", name: "Life D33 Solteiro", desc: "Suede Bege" },
+    "7898723389853": { sku: "CVL33SPU", name: "Life D33 Viuva", desc: "Suede Preto" },
+    "7898723389860": { sku: "CVL33SCU", name: "Life D33 Viuva", desc: "Suede Cinza" },
+    "7898723389877": { sku: "CVL33BCU", name: "Life D33 Viuva", desc: "Suede Branco" },
+    "7898723389884": { sku: "CVL33BGU", name: "Life D33 Viuva", desc: "Suede Bege" },
+    "7898723389891": { sku: "CCL33SPU", name: "Life D33 Casal", desc: "Suede Preto" },
+    "7898723389907": { sku: "CCL33SCU", name: "Life D33 Casal", desc: "Suede Cinza" },
+    "7898723389914": { sku: "CCL33BCU", name: "Life D33 Casal", desc: "Suede Branco" },
+    "7898723389921": { sku: "CCL33BGU", name: "Life D33 Casal", desc: "Suede Bege" },
+    "7898723389938": { sku: "CQL33SPU", name: "Life D33 Queen", desc: "Suede Preto" },
+    "7898723389945": { sku: "CQL33SCU", name: "Life D33 Queen", desc: "Suede Cinza" },
+    "7898723389952": { sku: "CQL33BCU", name: "Life D33 Queen", desc: "Suede Branco" },
+    "7898723389969": { sku: "CQL33BGU", name: "Life D33 Queen", desc: "Suede Bege" },
+
+    // Colchão D33 - Solteiro
+    "7898723380331": { sku: "CSP33", name: "D33 Solteiro", desc: "Suede Preto" },
+    "7898723382397": { sku: "CSP33SC", name: "D33 Solteiro", desc: "Suede Cinza" },
+    "7898723382816": { sku: "CSP33SBR", name: "D33 Solteiro", desc: "Suede Branco" },
+    "7898723382373": { sku: "CSP33SB", name: "D33 Solteiro", desc: "Suede Bege" },
+    "7898723382380": { sku: "CSP33SM", name: "D33 Solteiro", desc: "Suede Marrom" },
+
+    // Colchão D33 - Viuva
+    "7898723380348": { sku: "CVP33", name: "D33 Viuva", desc: "Suede Preto" },
+    "7898723382427": { sku: "CVP33SC", name: "D33 Viuva", desc: "Suede Cinza" },
+    "7901198903131": { sku: "CVP33SBR", name: "D33 Viuva", desc: "Suede Branco" },
+    "7898723382403": { sku: "CVP33SB", name: "D33 Viuva", desc: "Suede Bege" },
+    "7898723382410": { sku: "CVP33SM", name: "D33 Viuva", desc: "Suede Marrom" },
+
+    // Colchão D33 - Casal
+    "7898723380355": { sku: "CCP33", name: "D33 Casal", desc: "Suede Preto" },
+    "7898723382458": { sku: "CCP33SC", name: "D33 Casal", desc: "Suede Cinza" },
+    "7901198903117": { sku: "CCP33SBR", name: "D33 Casal", desc: "Suede Branco" },
+    "7898723382434": { sku: "CCP33SB", name: "D33 Casal", desc: "Suede Bege" },
+    "7898723382441": { sku: "CCP33SM", name: "D33 Casal", desc: "Suede Marrom" },
+
+    // Colchão D33 - Queen
+    "7898723380362": { sku: "CQP33", name: " D33 Queen", desc: "Suede Preto" },
+    "7898723382489": { sku: "CQP33SC", name: " D33 Queen", desc: "Suede Cinza" },
+    "7901198903094": { sku: "CQP33SBR", name: " D33 Queen", desc: "Suede Branco" },
+    "7898723382465": { sku: "CQP33SB", name: " D33 Queen", desc: "Suede Bege" },
+    "7898723382472": { sku: "CQP33SM", name: " D33 Queen", desc: "Suede Marrom" },
+
+    // D20
+    "7898723380126": { sku: "CSP20", name: " D20 Solteiro", desc: "Suede Preto" },
+    "7898723380140": { sku: "CCP20", name: " D20 Casal", desc: "Suede Preto" },
+    "7898723380133": { sku: "CVP20", name: " D20 Viuva", desc: "Suede Preto" },
+
+    // Prime D45 - Solteiro
+    "7898723386852": { sku: "CSP45", name: " Prime D45 Solteiro", desc: "Suede Preto" },
+    "7898723386838": { sku: "CSC45", name: " Prime D45 Solteiro", desc: "Suede Cinza" },
+    "7898723386821": { sku: "CSBR45", name: " Prime D45 Solteiro", desc: "Suede Branco" },
+    "7898723386814": { sku: "CSB45", name: " Prime D45 Solteiro", desc: "Suede Bege" },
+    "7898723386845": { sku: "CSM45", name: " Prime D45 Solteiro", desc: "Suede Marrom" },
+
+    // Prime D45 - Viuva
+    "7898723386807": { sku: "CVSP45", name: " Prime D45 Viuva", desc: "Suede Preto" },
+    "7898723386784": { sku: "CVSC45", name: " Prime D45 Viuva", desc: "Suede Cinza" },
+    "7898723386777": { sku: "CVSBR45", name: " Prime D45 Viuva", desc: "Suede Branco" },
+    "7898723386760": { sku: "CVSB45", name: " Prime D45 Viuva", desc: "Suede Bege" },
+    "7898723386791": { sku: "CVSM45", name: " Prime D45 Viuva", desc: "Suede Marrom" },
+
+    // Prime D45 - Casal
+    "7898723386753": { sku: "CCP45", name: " Prime D45 Casal", desc: "Suede Preto" },
+    "7898723386739": { sku: "CCC45", name: " Prime D45 Casal", desc: "Suede Cinza" },
+    "7898723386722": { sku: "CCBR45", name: " Prime D45 Casal", desc: "Suede Branco" },
+    "7898723386715": { sku: "CCB45", name: " Prime D45 Casal", desc: "Suede Bege" },
+    "7898723386746": { sku: "CCM45", name: " Prime D45 Casal", desc: "Suede Marrom" },
+
+    // Prime D45 - Queen
+    "7898723386906": { sku: "CQP45", name: " Prime D45 Queen", desc: "Suede Preto" },
+    "7898723386883": { sku: "CQC45", name: " Prime D45 Queen", desc: "Suede Cinza" },
+    "7898723386876": { sku: "CQBR45", name: " Prime D45 Queen", desc: "Suede Branco" },
+    "7898723386869": { sku: "CQB45", name: " Prime D45 Queen", desc: "Suede Bege" },
+    "7898723386890": { sku: "CQM45", name: " Prime D45 Queen", desc: "Suede Marrom" },
+};
+
+  let stock = {};
+  Object.keys(productsDB).forEach(code => { stock[code] = { qty: 0, lastAction: 'Nenhuma' }; });
+
+  let currentUser = null;
+  let loginSelectedRole = 'entrada';
+
+  function getRoleLabel(role) {
+    if (role === 'entrada') return 'Operador de Entrada';
+    if (role === 'saida') return 'Operador de Saída';
+    return 'Administrador';
+  }
+
+  // ---------- Supabase Sync ----------
+  async function syncCodeToSupabase(code) {
+    if (!stock[code]) return;
+    const { error } = await supabaseClient.from('estoque').upsert({
+      code: code, 
+      qty: stock[code].qty, 
+      last_action: stock[code].lastAction
+    }, { onConflict: 'code' });
+
+    if (error) {
+      console.error('Erro ao salvar no Supabase:', error);
+      showToast('Erro ao salvar no banco: ' + error.message, 'error');
+    }
+  }
+
+  async function loadStockFromSupabase() {
+    const { data, error } = await supabaseClient.from('estoque').select('*');
+    if (error) { showToast('Erro ao carregar estoque: ' + error.message, 'error'); return; }
+    if (data && data.length > 0) {
+      data.forEach(item => {
+        if (stock[item.code]) stock[item.code] = { qty: item.qty, lastAction: item.last_action || 'Nenhuma' };
+      });
+      renderTable();
+    }
+  }
+
+  supabaseClient
+    .channel('realtime:estoque')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'estoque' }, payload => {
+      const updated = payload.new;
+      if (updated && stock[updated.code]) {
+        stock[updated.code] = { qty: updated.qty, lastAction: updated.last_action };
+        renderTable();
+      }
+    })
+    .subscribe();
+
+  // ---------- Login ----------
+  function setLoginUser(role) {
+    loginSelectedRole = role;
+    document.getElementById('toggleEntrada').classList.toggle('active', role === 'entrada');
+    document.getElementById('toggleSaida').classList.toggle('active', role === 'saida');
+    document.getElementById('toggleAdmin').classList.toggle('active', role === 'admin');
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginUsername').focus();
+  }
+
+  function showLoginToast(message, type) {
+    const toast = document.getElementById('loginToast');
+    toast.innerText = message;
+    toast.className = `toast ${type}`;
+    toast.style.display = 'block';
+  }
+
+  async function handleLogin(event) {
+    event.preventDefault();
+    const usernameInput = document.getElementById('loginUsername').value.trim();
+    const passwordInput = document.getElementById('loginPassword').value.trim();
+    showLoginToast('A verificar credenciais...', 'success');
+
+    const { data: users, error } = await supabaseClient
+      .from('usuarios').select('*').ilike('username', usernameInput);
+
+    if (error) {
+      console.error('Erro de consulta Supabase:', error);
+      showLoginToast(`Erro no banco de dados: ${error.message}`, 'error');
+      return false;
+    }
+    if (!users || users.length === 0) {
+      showLoginToast(`Utilizador "${usernameInput}" não encontrado no banco.`, 'error');
+      return false;
+    }
+    const userFound = users.find(u => String(u.password).trim() === passwordInput);
+    if (!userFound) { showLoginToast('Palavra-passe incorreta.', 'error'); return false; }
+    if (userFound.role !== loginSelectedRole) {
+      showLoginToast(`Acesso negado: perfil incompatível!`, 'error');
+      return false;
+    }
+
+    currentUser = { username: userFound.username, mode: userFound.role, label: getRoleLabel(userFound.role) };
+    localStorage.setItem('mattress_session_v1', JSON.stringify(currentUser));
+    enterApp();
+    return false;
+  }
+
+  function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem('mattress_session_v1');
+    stopLiveScanner();
+    document.getElementById('appScreen').classList.add('hidden');
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('loginForm').reset();
+    document.getElementById('loginToast').style.display = 'none';
+  }
+
+  function enterApp() {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('appScreen').classList.remove('hidden');
+    document.getElementById('loggedUserLabel').innerText = `${currentUser.label} (${currentUser.username})`;
+
+    const banner = document.getElementById('modeBanner');
+    const title = document.getElementById('modeTitle');
+    const sub = document.getElementById('modeSub');
+    const isAdmin = currentUser.mode === 'admin';
+
+    document.getElementById('adminDashboard').classList.toggle('hidden', !isAdmin);
+    document.getElementById('stockViewSection').classList.toggle('hidden', !isAdmin);
+    document.getElementById('userManagementSection').classList.toggle('hidden', !isAdmin);
+    document.getElementById('btnResetStock').classList.toggle('hidden', !isAdmin);
+
+    if (currentUser.mode === 'entrada') {
+      banner.className = 'mode-banner entrada';
+      title.innerText = 'Modo: ENTRADA DE ESTOQUE';
+      sub.innerText = 'Cada leitura soma 1 unidade ao estoque';
+    } else if (currentUser.mode === 'saida') {
+      banner.className = 'mode-banner saida';
+      title.innerText = 'Modo: SAÍDA DE ESTOQUE';
+      sub.innerText = 'Cada leitura subtrai 1 unidade do estoque';
+    } else {
+      banner.className = 'mode-banner admin';
+      title.innerText = 'Modo: ADMINISTRADOR';
+      sub.innerText = 'Visão geral do estoque, relatórios e gestão de utilizadores';
+      loadUsersFromSupabase();
+    }
+
+    loadStockFromSupabase();
+    document.getElementById('barcodeInput').focus();
+  }
+
+  (function restoreSession() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('mattress_session_v1') || 'null'); } catch (e) {}
+    if (saved && saved.username && saved.mode) { currentUser = saved; enterApp(); }
+  })();
+
+  // ---------- Processamento ----------
+  function showToast(message, type) {
+    const toast = document.getElementById('toast');
+    toast.innerText = message;
+    toast.className = `toast ${type}`;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 4000);
+  }
+
+  function processCode(code) {
+    code = code.trim();
+    if (!code || !currentUser) return;
+    if (!productsDB[code]) { showToast(`Atenção: código de barras (${code}) não registado!`, 'error'); return; }
+
+    const prod = productsDB[code];
+    if (currentUser.mode === 'entrada' || currentUser.mode === 'admin') {
+      stock[code].qty += 1;
+      stock[code].lastAction = `Entrada (+1) — ${currentUser.username}`;
+      showToast(`✔ ENTRADA: ${prod.name} (${prod.desc})`, 'success');
+    } else if (currentUser.mode === 'saida') {
+      if (stock[code].qty > 0) {
+        stock[code].qty -= 1;
+        stock[code].lastAction = `Saida (-1) — ${currentUser.username}`;
+        showToast(`✖ SAÍDA: ${prod.name} (${prod.desc})`, 'success');
+      } else {
+        showToast('⚠ Produto sem saldo disponível!', 'error');
+        return;
+      }
+    }
+    saveAndRender(code);
+  }
+
+  function handlePhysicalScan(event) {
+    if (event.key === 'Enter') {
+      const input = document.getElementById('barcodeInput');
+      processCode(input.value);
+      input.value = '';
+    }
+  }
+
+  // ---------- Leitor de Câmera Estável ----------
+  let liveCodeReader = null;
+  let scannerBusy = false;
+
+  function handleDetected(text) {
+    if (scannerBusy) return;
+    scannerBusy = true;
+    if (navigator.vibrate) navigator.vibrate(100);
+    processCode(text);
+    setTimeout(() => { stopLiveScanner(); }, 500);
+  }
+
+  async function startLiveScanner() {
+    if (!currentUser) return;
+    scannerBusy = false;
+    document.getElementById('cameraModal').classList.remove('hidden');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Câmera requer HTTPS para funcionar no celular.', 'error');
+      stopLiveScanner();
+      return;
+    }
+
+    try {
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.QR_CODE
+      ]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+      liveCodeReader = new ZXing.BrowserMultiFormatReader(hints, 250);
+      await liveCodeReader.decodeFromConstraints(
+        { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
+        'videoScanner',
+        (result, err) => {
+          if (result && result.text) handleDetected(result.text);
+        }
+      );
+    } catch (e) {
+      console.error('Erro na Câmera:', e);
+      showToast('Não foi possível abrir a câmera. Verifique as permissões do navegador.', 'error');
+      stopLiveScanner();
+    }
+  } 
+
+  function stopLiveScanner() {
+    if (liveCodeReader) { 
+      liveCodeReader.reset(); 
+      liveCodeReader = null; 
+    }
+    const video = document.getElementById('videoScanner');
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+    document.getElementById('cameraModal').classList.add('hidden');
+  }
+
+  // ---------- Tabela e Renders ----------
+  function updateQtyDirectly(code, newQty) {
+    if (!currentUser || currentUser.mode !== 'admin') return;
+    const qty = parseInt(newQty, 10);
+    if (!isNaN(qty) && qty >= 0) {
+      stock[code].qty = qty;
+      stock[code].lastAction = `Ajuste Admin — ${currentUser.username}`;
+      saveAndRender(code);
+    }
+  }
+
+  function saveAndRender(codeToSync = null) {
+    renderTable();
+    if (codeToSync) syncCodeToSupabase(codeToSync);
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('stockTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    let totalUnits = 0;
+    const searchEl = document.getElementById('stockSearch');
+    const term = searchEl ? searchEl.value.toLowerCase().trim() : '';
+
+    Object.keys(productsDB).forEach(code => {
+      const prod = productsDB[code];
+      const item = stock[code] || { qty: 0, lastAction: 'Nenhuma' };
+      totalUnits += item.qty;
+
+      const haystack = `${prod.name} ${prod.desc} ${prod.sku} ${code}`.toLowerCase();
+      if (term && !haystack.includes(term)) return;
+
+      const badgeClass = item.lastAction.includes('Entrada') ? 'badge-in'
+        : (item.lastAction.includes('Saida') ? 'badge-out' : 'badge-neutral');
+
+      let qtyCell = `<strong style="font-size:16px;">${item.qty}</strong>`;
+      if (currentUser && currentUser.mode === 'admin') {
+        qtyCell = `<input type="number" min="0" class="qty-input" value="${item.qty}" onchange="updateQtyDirectly('${code}', this.value)">`;
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${prod.name}</strong><br><small color="var(--muted)">${prod.desc}</small></td>
+        <td><code>${code}</code></td>
+        <td>${prod.sku}</td>
+        <td>${qtyCell}</td>
+        <td><span class="badge ${badgeClass}">${item.lastAction}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('dashTotalUnits').innerText = totalUnits;
+    document.getElementById('dashTotalSKUs').innerText = Object.keys(productsDB).length;
+    document.getElementById('totalItems').innerText = `Total geral em estoque: ${totalUnits} unidades`;
+  }
+
+  async function loadUsersFromSupabase() {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    const { data, error } = await supabaseClient.from('usuarios').select('*').order('id', { ascending: true });
+    if (error) { showToast('Erro ao carregar utilizadores: ' + error.message, 'error'); return; }
+
+    tbody.innerHTML = '';
+    data.forEach(user => {
+      const tr = document.createElement('tr');
+      const badgeClass = user.role === 'entrada' ? 'badge-in' : (user.role === 'saida' ? 'badge-out' : 'badge-neutral');
+      tr.innerHTML = `
+        <td>${user.id}</td>
+        <td><strong>${user.username}</strong></td>
+        <td><span class="badge ${badgeClass}">${user.role.toUpperCase()}</span></td>
+        <td>${user.created_at ? new Date(user.created_at).toLocaleDateString('pt-PT') : '-'}</td>
+        <td><button class="btn-delete" onclick="deleteUser(${user.id}, '${user.username}')">Excluir</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function handleCreateUser(event) {
+    event.preventDefault();
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value.trim();
+    const role = document.getElementById('newRole').value;
+    const { error } = await supabaseClient.from('usuarios').insert([{ username, password, role }]);
+    if (error) {
+      showToast('Erro ao criar utilizador: ' + error.message, 'error');
+    } else {
+      showToast(`Utilizador "${username}" criado com sucesso!`, 'success');
+      document.getElementById('createUserForm').reset();
+      loadUsersFromSupabase();
+    }
+    return false;
+  }
+
+  async function deleteUser(id, username) {
+    if (username === currentUser.username) { alert('Não é possível excluir o utilizador atual!'); return; }
+    if (!confirm(`Remover o login "${username}"?`)) return;
+    const { error } = await supabaseClient.from('usuarios').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message, 'error');
+    } else {
+      showToast('Utilizador removido.', 'success');
+      loadUsersFromSupabase();
+    }
+  }
+
+  async function resetStock() {
+  if (!currentUser || currentUser.mode !== 'admin') {
+    showToast('Apenas administradores podem zerar o estoque.', 'error');
+    return;
+  }
+
+  const confirmar = confirm(
+    'ATENÇÃO!\n\n' +
+    'Isso vai zerar TODO o estoque de todos os produtos.\n\n' +
+    'Deseja realmente continuar?'
+  );
+
+  if (!confirmar) return;
+
+  try {
+    // Zera o estoque local
+    Object.keys(productsDB).forEach(code => {
+      stock[code].qty = 0;
+      stock[code].lastAction = `Estoque zerado — ${currentUser.username}`;
+    });
+
+    // Salva todos os produtos no Supabase
+    const registros = Object.keys(productsDB).map(code => ({
+      code: code,
+      qty: 0,
+      last_action: `Estoque zerado — ${currentUser.username}`
+    }));
+
+    const { error } = await supabaseClient
+      .from('estoque')
+      .upsert(registros, { onConflict: 'code' });
+
+    if (error) {
+      console.error('Erro ao zerar estoque:', error);
+      showToast('Erro ao zerar estoque: ' + error.message, 'error');
+
+      // Recarrega o estoque original do banco
+      await loadStockFromSupabase();
+      return;
+    }
+
+    renderTable();
+
+    showToast('✔ Estoque zerado com sucesso!', 'success');
+
+  } catch (error) {
+    console.error('Erro inesperado ao zerar estoque:', error);
+    showToast('Erro inesperado ao zerar o estoque.', 'error');
+  }
+}
+
+  function exportData() {
+    let csv = 'Codigo,SKU,Produto,Descricao,Quantidade,Ultima_Acao\n';
+    Object.keys(productsDB).forEach(code => {
+      const p = productsDB[code];
+      const s = stock[code] || { qty: 0, lastAction: 'Nenhuma' };
+      csv += `"${code}","${p.sku}","${p.name}","${p.desc}",${s.qty},\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `estoque_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+  }
+</script>
+</body>
+</html>
