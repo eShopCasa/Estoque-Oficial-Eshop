@@ -368,6 +368,12 @@
   let currentUser = null;
   let loginSelectedRole = 'entrada';
 
+  function isMasterLucas() {
+    if (!currentUser || currentUser.mode !== 'admin') return false;
+    const name = currentUser.username.toLowerCase().trim();
+    return name === "lucas d'" || name === "lucas d";
+  }
+
   function getRoleLabel(role) {
     if (role === 'entrada') return 'Operador de Entrada';
     if (role === 'saida') return 'Operador de Saída';
@@ -435,16 +441,25 @@
     const passwordInput = document.getElementById('loginPassword').value.trim();
     showLoginToast('A verificar credenciais...', 'success');
 
+    // Bypass seguro direto para o Lucas d' (funciona mesmo com a tabela usuários fechada pelo RLS)
+    if (loginSelectedRole === 'admin' && (usernameInput.toLowerCase() === "lucas d'" || usernameInput.toLowerCase() === "lucas d") && passwordInput === "2910") {
+      currentUser = { username: "Lucas d'", mode: 'admin', label: 'Administrador Master' };
+      localStorage.setItem('mattress_session_v1', JSON.stringify(currentUser));
+      enterApp();
+      return false;
+    }
+
+    // Consulta aos demais utilizadores no Supabase (respeitará o RLS se restrito)
     const { data: users, error } = await supabaseClient
       .from('usuarios').select('*').ilike('username', usernameInput);
 
     if (error) {
       console.error('Erro de consulta Supabase:', error);
-      showLoginToast(`Erro no banco de dados: ${error.message}`, 'error');
+      showLoginToast(`Acesso negado ou utilizador não encontrado.`, 'error');
       return false;
     }
     if (!users || users.length === 0) {
-      showLoginToast(`Utilizador "${usernameInput}" não encontrado no banco.`, 'error');
+      showLoginToast(`Utilizador "${usernameInput}" não encontrado.`, 'error');
       return false;
     }
     const userFound = users.find(u => String(u.password).trim() === passwordInput);
@@ -482,8 +497,11 @@
 
     document.getElementById('adminDashboard').classList.toggle('hidden', !isAdmin);
     document.getElementById('stockViewSection').classList.toggle('hidden', !isAdmin);
-    document.getElementById('userManagementSection').classList.toggle('hidden', !isAdmin);
-    document.getElementById('btnResetStock').classList.toggle('hidden', !isAdmin);
+    
+    // Apenas o Lucas d' (master) visualiza e gere utilizadores
+    const canManageUsers = isMasterLucas();
+    document.getElementById('userManagementSection').classList.toggle('hidden', !canManageUsers);
+    document.getElementById('btnResetStock').classList.toggle('hidden', !isMasterLucas());
 
     if (currentUser.mode === 'entrada') {
       banner.className = 'mode-banner entrada';
@@ -495,9 +513,11 @@
       sub.innerText = 'Cada leitura subtrai 1 unidade do estoque';
     } else {
       banner.className = 'mode-banner admin';
-      title.innerText = 'Modo: ADMINISTRADOR';
-      sub.innerText = 'Visão geral do estoque, relatórios e gestão de utilizadores';
-      loadUsersFromSupabase();
+      title.innerText = isMasterLucas() ? 'Modo: ADMINISTRADOR MASTER (Lucas d\')' : 'Modo: ADMINISTRADOR (Visualização)';
+      sub.innerText = isMasterLucas() ? 'Controle total de estoque e gestão de utilizadores' : 'Acesso restrito apenas à visualização do estoque e relatórios';
+      if (canManageUsers) {
+        loadUsersFromSupabase();
+      }
     }
 
     loadStockFromSupabase();
@@ -611,7 +631,11 @@
 
   // ---------- Tabela e Renders ----------
   function updateQtyDirectly(code, newQty) {
-    if (!currentUser || currentUser.mode !== 'admin') return;
+    if (!isMasterLucas()) {
+      showToast('Apenas o utilizador Lucas d\' tem permissão para editar o estoque.', 'error');
+      renderTable();
+      return;
+    }
     const qty = parseInt(newQty, 10);
     if (!isNaN(qty) && qty >= 0) {
       stock[code].qty = qty;
@@ -645,7 +669,7 @@
         : (item.lastAction.includes('Saida') ? 'badge-out' : 'badge-neutral');
 
       let qtyCell = `<strong style="font-size:16px;">${item.qty}</strong>`;
-      if (currentUser && currentUser.mode === 'admin') {
+      if (isMasterLucas()) {
         qtyCell = `<input type="number" min="0" class="qty-input" value="${item.qty}" onchange="updateQtyDirectly('${code}', this.value)">`;
       }
 
@@ -667,11 +691,12 @@
 
   async function loadUsersFromSupabase() {
     const tbody = document.getElementById('usersTableBody');
-    if (!tbody) return;
+    if (!tbody || !isMasterLucas()) return;
     const { data, error } = await supabaseClient.from('usuarios').select('*').order('id', { ascending: true });
-    if (error) { showToast('Erro ao carregar utilizadores: ' + error.message, 'error'); return; }
+    if (error) { showToast('Erro ao carregar utilizadores (RLS Restrito): ' + error.message, 'error'); return; }
 
     tbody.innerHTML = '';
+    if (!data) return;
     data.forEach(user => {
       const tr = document.createElement('tr');
       const badgeClass = user.role === 'entrada' ? 'badge-in' : (user.role === 'saida' ? 'badge-out' : 'badge-neutral');
@@ -688,6 +713,10 @@
 
   async function handleCreateUser(event) {
     event.preventDefault();
+    if (!isMasterLucas()) {
+      showToast('Apenas o Lucas d\' pode criar novos utilizadores.', 'error');
+      return false;
+    }
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value.trim();
     const role = document.getElementById('newRole').value;
@@ -703,7 +732,11 @@
   }
 
   async function deleteUser(id, username) {
-    if (username === currentUser.username) { alert('Não é possível excluir o utilizador atual!'); return; }
+    if (!isMasterLucas()) {
+      showToast('Ação restrita ao utilizador Lucas d\'.', 'error');
+      return;
+    }
+    if (username.toLowerCase() === "lucas d'") { alert('Não é possível excluir o administrador master!'); return; }
     if (!confirm(`Remover o login "${username}"?`)) return;
     const { error } = await supabaseClient.from('usuarios').delete().eq('id', id);
     if (error) {
@@ -715,55 +748,50 @@
   }
 
   async function resetStock() {
-  if (!currentUser || currentUser.mode !== 'admin') {
-    showToast('Apenas administradores podem zerar o estoque.', 'error');
-    return;
-  }
-
-  const confirmar = confirm(
-    'ATENÇÃO!\n\n' +
-    'Isso vai zerar TODO o estoque de todos os produtos.\n\n' +
-    'Deseja realmente continuar?'
-  );
-
-  if (!confirmar) return;
-
-  try {
-    // Zera o estoque local
-    Object.keys(productsDB).forEach(code => {
-      stock[code].qty = 0;
-      stock[code].lastAction = `Estoque zerado — ${currentUser.username}`;
-    });
-
-    // Salva todos os produtos no Supabase
-    const registros = Object.keys(productsDB).map(code => ({
-      code: code,
-      qty: 0,
-      last_action: `Estoque zerado — ${currentUser.username}`
-    }));
-
-    const { error } = await supabaseClient
-      .from('estoque')
-      .upsert(registros, { onConflict: 'code' });
-
-    if (error) {
-      console.error('Erro ao zerar estoque:', error);
-      showToast('Erro ao zerar estoque: ' + error.message, 'error');
-
-      // Recarrega o estoque original do banco
-      await loadStockFromSupabase();
+    if (!isMasterLucas()) {
+      showToast('Apenas o utilizador Lucas d\' pode zerar o estoque.', 'error');
       return;
     }
 
-    renderTable();
+    const confirmar = confirm(
+      'ATENÇÃO!\n\n' +
+      'Isso vai zerar TODO o estoque de todos os produtos.\n\n' +
+      'Deseja realmente continuar?'
+    );
 
-    showToast('✔ Estoque zerado com sucesso!', 'success');
+    if (!confirmar) return;
 
-  } catch (error) {
-    console.error('Erro inesperado ao zerar estoque:', error);
-    showToast('Erro inesperado ao zerar o estoque.', 'error');
+    try {
+      Object.keys(productsDB).forEach(code => {
+        stock[code].qty = 0;
+        stock[code].lastAction = `Estoque zerado — ${currentUser.username}`;
+      });
+
+      const registros = Object.keys(productsDB).map(code => ({
+        code: code,
+        qty: 0,
+        last_action: `Estoque zerado — ${currentUser.username}`
+      }));
+
+      const { error } = await supabaseClient
+        .from('estoque')
+        .upsert(registros, { onConflict: 'code' });
+
+      if (error) {
+        console.error('Erro ao zerar estoque:', error);
+        showToast('Erro ao zerar estoque: ' + error.message, 'error');
+        await loadStockFromSupabase();
+        return;
+      }
+
+      renderTable();
+      showToast('✔ Estoque zerado com sucesso!', 'success');
+
+    } catch (error) {
+      console.error('Erro inesperado ao zerar estoque:', error);
+      showToast('Erro inesperado ao zerar o estoque.', 'error');
+    }
   }
-}
 
   function exportData() {
     let csv = 'Codigo,SKU,Produto,Descricao,Quantidade,Ultima_Acao\n';
