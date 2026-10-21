@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1E2A38">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Controle de Estoque</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- Aviso flutuante (login e app) -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- ============ LOGIN ============ -->
+<main id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h1>CONTROLE DE ESTOQUE - e-Shop</h1>
+    <p class="tag">Controle de estoque por código de barras</p>
+    <div class="user-toggle">
+      <button type="button" class="active entrada" data-role="entrada">Entrada</button>
+      <button type="button" class="saida" data-role="saida">Saída</button>
+      <button type="button" class="admin" data-role="admin">Admin</button>
+    </div>
+    <form id="loginForm" autocomplete="on">
+      <div class="field">
+        <label for="loginUsername">Utilizador</label>
+        <input type="text" id="loginUsername" autocomplete="username" autocapitalize="none" required>
+      </div>
+      <div class="field">
+        <label for="loginPassword">Palavra-passe</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <p id="loginMsg" class="login-msg" role="alert"></p>
+      <button type="submit" class="btn btn-navy">Entrar</button>
+    </form>
+    <p class="login-hint">Selecione o perfil e insira as suas credenciais.</p>
+  </div>
+</main>
+
+<!-- ============ APP ============ -->
+<div id="appScreen" class="app hidden">
+  <header class="app-header">
+    <div>
+      <h1>CONTROLE DE ESTOQUE</h1>
+      <p class="subtitle"><strong id="loggedUserLabel"></strong></p>
+    </div>
+    <button type="button" id="btnLogout" class="logout-btn">Sair</button>
+  </header>
+
+  <div id="modeBanner" class="mode-banner">
+    <div id="modeTitle" class="mode-title"></div>
+    <div id="modeSub" class="mode-sub"></div>
+  </div>
+
+  <!-- VIEW: BIPAR -->
+  <section id="view-scan" class="view">
+    <div id="todayStats" class="today-stats">
+      <div id="cardIn" class="today-card in"><span id="todayIn">0</span><small id="todayInLabel">produtos bipados em entrada hoje</small></div>
+      <div id="cardOut" class="today-card out"><span id="todayOut">0</span><small id="todayOutLabel">produtos bipados em saída hoje</small></div>
+    </div>
+    <div class="scan-box">
+      <button type="button" id="btnCamera" class="camera-trigger">📷 Abrir leitor de código de barras</button>
+      <input type="text" id="barcodeInput" inputmode="numeric" placeholder="Ou bipe com leitor USB/Bluetooth..." autocomplete="off">
+    </div>
+  </section>
+
+  <!-- VIEW: ESTOQUE (admin) -->
+  <section id="view-stock" class="view hidden">
+    <div class="dash-grid">
+      <div class="dash-card"><h3>Unidades</h3><div class="value" id="dashTotalUnits">0</div></div>
+      <div class="dash-card"><h3>Modelos</h3><div class="value" id="dashTotalSKUs">0</div></div>
+      <div class="dash-card"><h3>Bipados hoje</h3><div class="value" id="dashToday">0</div></div>
+    </div>
+    <h2>Catálogo e Estoque Atual</h2>
+    <input type="search" id="stockSearch" class="search" placeholder="🔍 Produto, cor, SKU ou código..." autocomplete="off">
+    <div id="stockList" class="stock-list scroll-box"></div>
+    <div id="noResults" class="empty hidden">Nenhum produto encontrado.</div>
+    <div class="controls">
+      <span id="totalItems" class="total-items">Total geral em estoque: 0 unidades</span>
+      <div class="control-btns">
+        <button type="button" id="btnResetStock" class="action ghost danger hidden">Zerar Estoque</button>
+        <button type="button" id="btnExportStock" class="action">Exportar estoque (CSV)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIEW: HISTÓRICO (admin) -->
+  <section id="view-history" class="view hidden">
+    <h2>Histórico de bipagens</h2>
+    <p class="muted-text">Só aparecem os dias em que houve bipagem, do mais recente para o mais antigo.</p>
+    <div class="hist-toolbar">
+      <span id="historySummary" class="hist-summary"></span>
+      <button type="button" id="btnExportHistory" class="action ghost small">Exportar (CSV)</button>
+    </div>
+    <div id="historyList" class="history-list"></div>
+    <button type="button" id="btnLoadMore" class="action ghost block hidden">Carregar dias anteriores</button>
+  </section>
+
+  <!-- VIEW: EQUIPE (admin) -->
+  <section id="view-team" class="view hidden">
+    <h2>Desempenho da equipe</h2>
+    <div id="teamSetup" class="setup-box hidden">
+      <strong>Falta criar as funções da equipe.</strong><br>
+      No Supabase, abra <em>SQL Editor</em>, cole o conteúdo do arquivo
+      <code>sql/equipe.sql</code> e clique em <em>Run</em>. Depois recarregue esta página.
+    </div>
+    <div id="teamContent">
+      <div class="reset-card">
+        <div id="resetInfo" class="reset-info"></div>
+        <button type="button" id="btnResetCount" class="action ghost danger small hidden">Zerar histórico da equipe</button>
+      </div>
+
+      <h3>Hoje e total desde o reinício</h3>
+      <div id="teamList" class="team-list scroll-box"></div>
+
+      <h3>Pesquisar por período</h3>
+      <p class="muted-text">Escolha um intervalo de até 30 dias. A pesquisa considera só as bipagens feitas depois do último "Zerar histórico da equipe".</p>
+      <div class="range-grid">
+        <div class="field"><label for="rangeFrom">De</label><input type="date" id="rangeFrom"></div>
+        <div class="field"><label for="rangeTo">Até</label><input type="date" id="rangeTo"></div>
+      </div>
+      <div class="range-actions">
+        <button type="button" id="btnRangeSearch" class="action">Pesquisar</button>
+        <button type="button" class="action ghost" data-range="7">7 dias</button>
+        <button type="button" class="action ghost" data-range="30">30 dias</button>
+      </div>
+      <div class="hist-toolbar">
+        <span id="periodSummary" class="hist-summary"></span>
+        <button type="button" id="btnExportPeriod" class="action ghost small">Exportar (CSV)</button>
+      </div>
+      <div id="periodList" class="period-list scroll-box"></div>
+    </div>
+  </section>
+
+  <!-- VIEW: UTILIZADORES (master) -->
+  <section id="view-users" class="view hidden">
+    <h2>Gestão de Logins e Utilizadores</h2>
+    <form id="createUserForm" class="admin-box">
+      <div class="field">
+        <label for="newUsername">Novo utilizador</label>
+        <input type="text" id="newUsername" placeholder="Ex: operador1" autocapitalize="none" required>
+      </div>
+      <div class="field">
+        <label for="newPassword">Palavra-passe</label>
+        <input type="password" id="newPassword" placeholder="Ex: 123456" required>
+      </div>
+      <div class="field">
+        <label for="newRole">Perfil de acesso</label>
+        <select id="newRole">
+          <option value="entrada">Entrada</option>
+          <option value="saida">Saída</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-navy">Criar login</button>
+    </form>
+    <h3>Logins cadastrados</h3>
+    <div id="usersList" class="users-list scroll-box"></div>
+  </section>
+
+  <p class="footnote">Sincronização em tempo real via Supabase.</p>
+</div>
+
+<!-- Navegação inferior (só administradores) -->
+<nav id="bottomNav" class="bottom-nav hidden" aria-label="Seções">
+  <button type="button" data-view="scan"><span>📷</span>Bipar</button>
+  <button type="button" data-view="stock"><span>📦</span>Estoque</button>
+  <button type="button" data-view="history"><span>📅</span>Histórico</button>
+  <button type="button" data-view="team"><span>🏆</span>Equipe</button>
+  <button type="button" data-view="users" id="navUsers"><span>👥</span>Logins</button>
+</nav>
+
+<!-- Câmera -->
+<div id="cameraModal" class="camera-modal hidden">
+  <div class="camera-content">
+    <h3>Aproxime o código de barras ou QR Code</h3>
+    <video id="videoScanner" autoplay playsinline muted></video>
+    <button type="button" id="btnCloseCamera" class="btn btn-navy">Fechar câmera</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/products.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/db.js"></script>
+<script src="js/history.js"></script>
+<script src="js/team.js"></script>
+<script src="js/stock.js"></script>
+<script src="js/scanner.js"></script>
+<script src="js/users.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
