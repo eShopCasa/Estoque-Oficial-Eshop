@@ -22,15 +22,10 @@
   <div class="login-card">
     <h1>CONTROLE DE ESTOQUE - e-Shop</h1>
     <p class="tag">Controle de estoque por código de barras</p>
-    <div class="user-toggle">
-      <button type="button" class="active entrada" data-role="entrada">Entrada</button>
-      <button type="button" class="saida" data-role="saida">Saída</button>
-      <button type="button" class="admin" data-role="admin">Admin</button>
-    </div>
     <form id="loginForm" autocomplete="on">
       <div class="field">
         <label for="loginUsername">Utilizador</label>
-        <input type="text" id="loginUsername" autocomplete="username" autocapitalize="none" required>
+        <input type="text" id="loginUsername" autocomplete="username" autocapitalize="none" autofocus required>
       </div>
       <div class="field">
         <label for="loginPassword">Palavra-passe</label>
@@ -39,7 +34,7 @@
       <p id="loginMsg" class="login-msg" role="alert"></p>
       <button type="submit" class="btn btn-navy">Entrar</button>
     </form>
-    <p class="login-hint">Selecione o perfil e insira as suas credenciais.</p>
+    <p class="login-hint">O seu perfil (entrada, saída ou administrador) é reconhecido automaticamente.</p>
   </div>
 </main>
 
@@ -94,19 +89,12 @@
   <section id="view-history" class="view hidden">
     <h2>Histórico de bipagens</h2>
     <p class="muted-text">Só aparecem os dias em que houve bipagem, do mais recente para o mais antigo.</p>
-    <p id="historyResetInfo" class="muted-text" style="margin-top:-6px;"></p>
     <div class="hist-toolbar">
       <span id="historySummary" class="hist-summary"></span>
       <button type="button" id="btnExportHistory" class="action ghost small">Exportar (CSV)</button>
     </div>
     <div id="historyList" class="history-list"></div>
     <button type="button" id="btnLoadMore" class="action ghost block hidden">Carregar dias anteriores</button>
-
-    <div id="historyDanger" class="danger-box hidden" style="margin-top:18px;">
-      <p>Zera o <strong>histórico total de bipagens</strong>: esta aba e o CSV passam a mostrar só o que for bipado a partir de agora.
-      O <strong>estoque</strong> e a <strong>contagem da equipe</strong> (aba Equipe) <strong>não são alterados</strong>. Exporte o CSV antes, se quiser guardar o que está aqui.</p>
-      <button type="button" id="btnResetHistoryTab" class="action ghost danger">Zerar histórico de bipagens</button>
-    </div>
   </section>
 
   <!-- VIEW: EQUIPE (admin) -->
