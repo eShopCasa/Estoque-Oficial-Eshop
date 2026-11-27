@@ -113,9 +113,8 @@ button.action.block { width:100%; margin-top:12px; }
 .dash-card.ret .dc-icon { background:var(--warn); color:var(--navy); }
 .dash-card.ret .value { color:var(--warn-ink); }
 /* Cartão principal: total em estoque */
-.dash-card.total { grid-column:1 / -1; flex-direction:row; justify-content:center; text-align:left; gap:14px; padding:18px 16px; background:linear-gradient(135deg,#1E2A38 0%,#2E4157 100%); border-color:transparent; box-shadow:0 4px 14px rgba(30,42,56,.18); }
+.dash-card.total { grid-column:1 / -1; flex-direction:row; justify-content:center; text-align:center; gap:14px; padding:18px 16px; background:linear-gradient(135deg,#1E2A38 0%,#2E4157 100%); border-color:transparent; box-shadow:0 4px 14px rgba(30,42,56,.18); }
 .dash-card.total::before { display:none; }
-.dash-card.total .dc-icon { width:52px; height:52px; font-size:26px; margin:0; background:rgba(255,255,255,.14); }
 .dash-card.total .dc-text { display:flex; flex-direction:column; }
 .dash-card.total h3 { color:rgba(255,255,255,.75); font-size:12px; }
 .dash-card.total .value { color:#fff; font-size:40px; margin:0; }
