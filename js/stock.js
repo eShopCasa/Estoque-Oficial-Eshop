@@ -235,7 +235,7 @@ const Stock = {
             <span class="desc">${esc(prod.desc)}</span>
             <span class="codes">${esc(prod.sku)} · ${esc(code)}</span>
             <span class="badge ${badge}">${esc(item.lastAction)}</span>
-            <button type="button" class="btn-label" data-code="${esc(code)}">⬇ Baixar Etiqueta</button>
+            <button type="button" class="btn-label" data-code="${esc(code)}">Baixar Etiqueta</button>
           </div>
           <div class="si-qty">${qty}</div>
         </div>`;
