@@ -1,0 +1,94 @@
+# Controle de Estoque (e-Shop)
+
+Sistema de estoque por código de barras, pensado para uso no celular.
+
+## Estrutura
+
+```
+estoque-app/
+├── index.html          # telas (login, bipar, estoque, histórico, logins)
+├── css/styles.css      # estilos (mobile-first)
+├── js/
+│   ├── config.js       # Supabase, fuso horário, master, nome da tabela do histórico
+│   ├── products.js     # catálogo: código de barras -> SKU / nome / cor
+│   ├── utils.js        # helpers (avisos, datas no fuso certo, CSV)
+│   ├── db.js           # cliente Supabase
+│   ├── history.js      # histórico de bipagens por dia
+│   ├── team.js         # desempenho por colaborador, reinício de contagem, período
+│   ├── stock.js        # estoque, bipagem, ajustes, exportação
+│   ├── scanner.js      # câmera (ZXing) e leitor USB/Bluetooth
+│   ├── users.js        # gestão de logins (master)
+│   ├── auth.js         # login, sessão, permissões
+│   └── app.js          # navegação e ligação entre os módulos
+├── sql/historico.sql   # cria a tabela do histórico no Supabase
+├── sql/funcao.sql      # grava a função (admin/entrada/saída) no histórico (rodar depois do historico.sql)
+└── sql/equipe.sql      # reinício de contagem + resumos por pessoa/dia (rodar depois do historico.sql)
+```
+
+## Etiquetas no Supabase Storage (uma vez só)
+
+As etiquetas (PNG) não ficam mais no código: ficam no bucket público `etiquetas` do Supabase, um arquivo por código de barras (`<codigo>.png`).
+
+1. SQL Editor → rode `sql/etiquetas.sql` (cria o bucket e a leitura pública).
+2. Na pasta `etiquetas-para-upload/`, rode (Node 18+):
+   `SUPABASE_URL=https://SEU-PROJETO.supabase.co SUPABASE_SERVICE_KEY=<service_role> node upload-etiquetas.js`
+   (ou arraste os PNGs pelo painel Storage → etiquetas). A chave service_role nunca vai para o app.
+3. O botão **Baixar Etiqueta** busca o arquivo no bucket e força o download.
+
+## Ativar o histórico (uma vez só)
+
+1. Abra o projeto no Supabase → **SQL Editor** → **New query**.
+2. Cole o conteúdo de `sql/historico.sql` e clique em **Run**.
+3. Pronto: a partir daí cada bipagem é gravada e aparece na aba **Histórico**.
+
+> Bipagens feitas *antes* de criar a tabela não têm registro; o histórico começa a valer a partir da primeira bipagem depois do SQL.
+
+## Ativar a aba Equipe (uma vez só, depois do histórico)
+
+Rode `sql/equipe.sql` no SQL Editor do Supabase. Ele cria a tabela de reinícios e as funções de resumo.
+
+- **Por colaborador:** número de entradas, saídas e devoluções desde o último reinício (com "hoje N" embaixo de cada um). Cada colaborador mostra só o que ele faz, sem somar tudo num total único.
+- **Zerar histórico da equipe** (só o master, pede a senha): hoje, total e período de todos os colaboradores voltam a zero. A aba Histórico e o estoque não são alterados (as bipagens continuam gravadas).
+- **Zerar estoque do colaborador** (botão em cada colaborador da lista "Hoje e total", só o master, pede a senha): zera só a contagem daquela pessoa; os outros, o Histórico e o estoque não mudam. Rode `sql/colaborador.sql` uma vez (depois do `master.sql`) para ativar.
+- **Período:** intervalo personalizado de até 30 dias, com total por pessoa e detalhe por dia (exportável em CSV). Só conta o que foi bipado depois do último "Zerar histórico da equipe".
+
+## Login com perfil automático
+
+A tela de login não pede mais para escolher Entrada/Saída/Admin: o sistema lê o perfil do utilizador direto no banco.
+Rode `sql/login.sql` uma vez no SQL Editor do Supabase para a conferência ser feita no servidor (função `login_usuario`).
+Esse mesmo SQL cria a coluna `ultimo_login` em `usuarios`: a aba **Logins** (só o master) mostra o último login de cada utilizador. Rode-o de novo para ativar (o master não está na tabela `usuarios`, então não aparece nessa lista).
+Enquanto não rodar, o app usa uma consulta direta à tabela `usuarios` e continua funcionando. O master (`MASTER_USERNAMES`) segue com `sql/master.sql`.
+
+## Como funciona o histórico
+
+- Cada bipagem (entrada/saída), ajuste manual e "zerar estoque" vira uma linha com data, hora e utilizador.
+- A aba **Histórico** (administradores) agrupa por dia e **só mostra dias em que houve bipagem** — dias sem movimento são pulados automaticamente.
+- Cada dia mostra o total bipado, entradas, saídas, o resumo por produto e, se abrir, a lista por horário.
+- O "dia" usa o fuso `America/Sao_Paulo` (muda em `js/config.js`).
+- Na tela de bipar: quem faz **entrada** vê só quantos produtos bipou em entrada hoje; quem faz **saída**, só os de saída; o **admin** vê os dois (de todos).
+- O CSV do histórico sai em ordem cronológica (mais antigo no topo, mais novo no final) e tem a coluna **Funcao** (Admin, Entrada ou Saída). Rode `sql/funcao.sql` uma vez para ativá-la e preencher as bipagens antigas.
+- O CSV da equipe (período) traz, por colaborador e dia, as entradas com o total após a entrada e as saídas com o total após a saída.
+
+## Publicar
+
+A câmera só funciona em **HTTPS** (Netlify, Vercel, GitHub Pages, Cloudflare Pages ou o seu servidor com certificado). Suba a pasta inteira, mantendo a estrutura.
+
+## Confirmação de bipagem
+
+Ao bipar, o app abre uma tela de confirmação (feita para celular, botões grandes) perguntando se deseja dar **entrada** ou **saída** naquele produto, com o estoque atual e o que ficará. Só grava depois de **Confirmar**; **Não confirmar** (ou Esc) cancela sem alterar nada.
+
+## Master: entrada e saída no mesmo login
+
+Na tela **Bipar**, o master vê o seletor **▲ Entrada / ▼ Saída / ↺ Devolução** (começa em Entrada a cada login). A confirmação de bipagem mostra o tipo escolhido.
+
+## Login de devolução (amarelo)
+
+Crie um login com o perfil **Devolução** na aba Logins. Cada leitura soma +1 no estoque (como a entrada), mas é registrada como **devolução** e aparece em **amarelo** (entrada = verde, saída = vermelho) na tela de bipar, na confirmação, no estoque e no histórico.
+Rode `sql/devolucao.sql` uma vez no Supabase (e depois `sql/colaborador.sql` de novo). Na aba Equipe, a devolução aparece separada (chip amarelo "dev. +N"), ao lado das entradas e saídas de cada colaborador.
+
+## Etiquetas (código de barras)
+
+- A pasta `etiquetas/` guarda uma imagem por produto, com o nome `<código de barras>.png`. O arquivo `_indice.csv` lista código, SKU, produto e se a imagem foi enviada ou gerada.
+- Na aba **Estoque**, cada produto tem o botão **⬇ Baixar Etiqueta**, que baixa o PNG daquele código.
+- Produto novo em `js/products.js`: coloque o PNG em `etiquetas/` com o nome do código (EAN-13) e o botão já funciona.
+- `etiquetas/fora-do-catalogo/` guarda etiquetas que ainda não têm produto cadastrado (Life Gold).
